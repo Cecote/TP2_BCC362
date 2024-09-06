@@ -21,8 +21,8 @@ public class Client {
              PrintWriter out = new PrintWriter(socket.getOutputStream(), true);
              BufferedReader in = new BufferedReader(new InputStreamReader(socket.getInputStream()))) {
 
-            int timestamp = new Random().nextInt(1000);
-            out.println("REQUEST:" + id + ":" + timestamp); // Adicionado prefixo "REQUEST"
+
+            out.println("REQUEST:" + id); // Adicionado prefixo "REQUEST"
 
             String response = in.readLine();
             if ("COMMITTED".equals(response)) {
