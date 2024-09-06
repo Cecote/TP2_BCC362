@@ -25,15 +25,18 @@ public class Client {
             out.println("REQUEST:" + id); // Adicionado prefixo "REQUEST"
 
             String response = in.readLine();
-            if ("COMMITTED".equals(response)) {
-                System.out.println("Cliente " + id + " recebeu COMMITTED");
-                Thread.sleep(new Random().nextInt(7000) + 1000); // Espera de 1 a 5 segundos
-                //Thread.sleep(15000);
-                //requestResource(); // Repetir o pedido
-            } else {
-                System.out.println("Cliente " + id + " não recebeu resposta esperada.");
-                //requestResource();
-            }
+            //for (int i = 0; i < 5; i++){
+                if ("COMMITTED".equals(response)) {
+                    System.out.println("Cliente " + id + " recebeu COMMITTED");
+                    Thread.sleep(new Random().nextInt(7000) + 1000); // Espera de 1 a 5 segundos
+                    //Thread.sleep(15000);
+                    //requestResource(); // Repetir o pedido
+                } else {
+                    System.out.println("Cliente " + id + " não recebeu resposta esperada.");
+                    //requestResource();
+                }
+            //}
+
 
         } catch (IOException | InterruptedException e) {
             e.printStackTrace();

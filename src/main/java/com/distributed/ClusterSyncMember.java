@@ -106,6 +106,25 @@ public class ClusterSyncMember {
             } else if ("NOTIFY".equals(messageType)) {
                 // Trata notificações
                 notifyClient();
+            } else if ("DELETE".equals(messageType)) {
+                Request deleteRequest = new Request(Integer.parseInt(parts[1]), Integer.parseInt(parts[2]));
+                Iterator<Request> iterator = requestQueue.iterator();
+                while (iterator.hasNext()) {
+                    Request req = iterator.next();
+                    if(req.timestamp == deleteRequest.timestamp && req.senderId == deleteRequest.senderId){
+                        iterator.remove();
+
+                    }
+                }
+//                for (Request req : requestQueue) {
+//                    if(req.timestamp == deleteRequest.timestamp && req.senderId == deleteRequest.senderId){
+//                        System.out.println(req);
+//                        System.out.println("Lista antes: " + requestQueue);
+//                        requestQueue.remove(req);
+//                        System.out.println("Lista depois: " + requestQueue);
+//                    }
+//                }
+//                System.out.println("prepragate");
             }
 
         } catch (IOException e) {
@@ -132,6 +151,24 @@ public class ClusterSyncMember {
         }
     }
 
+    private void propagateExclusion(Request topRequest) {
+        for (int port : clusterPorts) {
+            if (port != this.port) {
+                sendDeleteToMember(port, topRequest);
+            }
+        }
+    }
+
+    private void sendDeleteToMember(int memberPort, Request topRequest) {
+        try (Socket socket = new Socket("localhost", memberPort);
+             PrintWriter out = new PrintWriter(socket.getOutputStream(), true)) {
+
+            out.println("DELETE:" + topRequest.timestamp + ":" + topRequest.senderId);
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+
     private void evaluateCriticalSection() {
         Request topRequest = requestQueue.get(0);
         System.out.println(requestQueue);
@@ -141,7 +178,7 @@ public class ClusterSyncMember {
         if (topRequest != null && topRequest.senderId == id) {
             // Apenas o membro com o menor timestamp e ID correto pode entrar na seção crítica
             //requestQueue.poll(); // Remove a requisição do topo
-            requestCriticalSection();
+            requestCriticalSection(topRequest);
         }
     }
 
@@ -157,7 +194,7 @@ public class ClusterSyncMember {
         }
     }
 
-    public void requestCriticalSection() {
+    public void requestCriticalSection(Request topRequest) {
         requestingCS = true;
         logicalClock++;
 
@@ -165,7 +202,7 @@ public class ClusterSyncMember {
         enterCriticalSection();
 
         // Responde ao cliente e ao próximo membro na fila
-        exitCriticalSection();
+        exitCriticalSection(topRequest);
     }
 
     private void enterCriticalSection() {
@@ -179,9 +216,13 @@ public class ClusterSyncMember {
         }
     }
 
-    private void exitCriticalSection() {
+    private void exitCriticalSection(Request topRequest) {
         System.out.println("Membro Peer" + id + " saindo da seção crítica.");
-        requestQueue.remove(0);
+        System.out.println(requestQueue);
+        if (requestQueue.contains(topRequest)){
+            requestQueue.remove(topRequest);
+        }
+        propagateExclusion(topRequest);
         requestingCS = false;
         logicalClock++;
 
@@ -207,6 +248,8 @@ public class ClusterSyncMember {
             }
         }
     }
+
+
 
     private void sendNotificationToMember(int memberId) {
         for (int port : clusterPorts) {
