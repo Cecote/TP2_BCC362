@@ -18,8 +18,8 @@ public class ClusterSyncMember {
     private boolean requestingCS = false;
     private Set<Integer> receivedReplies;
     private List<Request> requestQueue;
-
     private int clientId = 0;
+
 
     private class Request {
         int timestamp;
@@ -125,6 +125,32 @@ public class ClusterSyncMember {
 //                    }
 //                }
 //                System.out.println("prepragate");
+            } else if ("STATUS".equals(messageType)) {
+                if(parts[1].equals("true")){
+                    requestingCS = true;
+                } else if(parts[1].equals("false")) {
+                    requestingCS = false;
+                    evaluateCriticalSection();
+                }
+
+
+//                Iterator<Request> iterator = requestQueue.iterator();
+//                while (iterator.hasNext()) {
+//                    Request req = iterator.next();
+//                    if(req.timestamp == deleteRequest.timestamp && req.senderId == deleteRequest.senderId){
+//                        iterator.remove();
+//
+//                    }
+//                }
+//                for (Request req : requestQueue) {
+//                    if(req.timestamp == deleteRequest.timestamp && req.senderId == deleteRequest.senderId){
+//                        System.out.println(req);
+//                        System.out.println("Lista antes: " + requestQueue);
+//                        requestQueue.remove(req);
+//                        System.out.println("Lista depois: " + requestQueue);
+//                    }
+//                }
+//                System.out.println("prepragate");
             }
 
         } catch (IOException e) {
@@ -169,16 +195,36 @@ public class ClusterSyncMember {
         }
     }
 
+    private void propagateCriticalRegionStatus() {
+        for (int port : clusterPorts) {
+            if (port != this.port) {
+                sendStatusCrToMember(port);
+            }
+        }
+    }
+
+    private void sendStatusCrToMember(int memberPort) {
+        try (Socket socket = new Socket("localhost", memberPort);
+             PrintWriter out = new PrintWriter(socket.getOutputStream(), true)) {
+
+            out.println("STATUS:" + requestingCS);
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+
     private void evaluateCriticalSection() {
-        Request topRequest = requestQueue.get(0);
         System.out.println(requestQueue);
         for (Request req : requestQueue) {
             System.out.println("Timestamp: " + req.timestamp + ", SenderId: " + req.senderId);
         }
-        if (topRequest != null && topRequest.senderId == id) {
-            // Apenas o membro com o menor timestamp e ID correto pode entrar na seção crítica
-            //requestQueue.poll(); // Remove a requisição do topo
-            requestCriticalSection(topRequest);
+        if(!requestingCS && !requestQueue.isEmpty()){
+            Request topRequest = requestQueue.get(0);
+            if (topRequest != null && topRequest.senderId == id) {
+                // Apenas o membro com o menor timestamp e ID correto pode entrar na seção crítica
+                //requestQueue.poll(); // Remove a requisição do topo
+                requestCriticalSection(topRequest);
+            }
         }
     }
 
@@ -197,6 +243,7 @@ public class ClusterSyncMember {
     public void requestCriticalSection(Request topRequest) {
         requestingCS = true;
         logicalClock++;
+        propagateCriticalRegionStatus();
 
         // Simula a seção crítica
         enterCriticalSection();
@@ -218,13 +265,13 @@ public class ClusterSyncMember {
 
     private void exitCriticalSection(Request topRequest) {
         System.out.println("Membro Peer" + id + " saindo da seção crítica.");
-        System.out.println(requestQueue);
         if (requestQueue.contains(topRequest)){
             requestQueue.remove(topRequest);
         }
         propagateExclusion(topRequest);
         requestingCS = false;
         logicalClock++;
+        propagateCriticalRegionStatus();
 
         // Notifica o cliente
         notifyClient();

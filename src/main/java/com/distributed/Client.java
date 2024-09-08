@@ -53,6 +53,8 @@ public class Client {
         int clusterPort = Integer.parseInt(args[1]);
 
         Client client = new Client(id, clusterPort);
-        client.requestResource();
+        //for (int i = 0; i < 5; i++){
+            client.requestResource();
+        //}
     }
 }
