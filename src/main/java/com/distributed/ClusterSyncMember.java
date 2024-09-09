@@ -14,7 +14,9 @@ public class ClusterSyncMember {
     private int id;
     private int port;
     private int clientPort;
+    private Map.Entry<String, Integer> clientCred;
     private List<Integer> clusterPorts;
+    private List<Map.Entry<String, Integer>> clusterMembers = new ArrayList<>();
     private int logicalClock = 0;
     private boolean requestingCS = false;
     private Set<Integer> receivedReplies;
@@ -34,13 +36,15 @@ public class ClusterSyncMember {
         }
     }
 
-    public ClusterSyncMember(int id, int port, List<Integer> clusterPorts) {
+    public ClusterSyncMember(int id, int port, List<Map.Entry<String, Integer>> clusterMembers, Map.Entry<String, Integer> clientCred) {
         this.id = id;
         this.port = port;
-        this.clusterPorts = clusterPorts;
+        this.clusterMembers = clusterMembers;
+        this.clientCred = clientCred;
         this.receivedReplies = new HashSet<>();
         System.out.println("Ordenando");
         this.requestQueue = new ArrayList<>();
+        //testando();
     }
 
     public void run() {
@@ -75,7 +79,7 @@ public class ClusterSyncMember {
             if ("REQUEST".equals(messageType)) {
                 // Trata requisições do cliente
                 clientId = Integer.parseInt(parts[1]);
-                this.clientPort = Integer.parseInt(parts[2]);
+                //this.clientPort = Integer.parseInt(parts[2]);
                 int timestamp = new Random().nextInt(1000);
                 logicalClock = Math.max(logicalClock, timestamp) + 1;
                 requestQueue.add(new Request(timestamp, id));
@@ -160,7 +164,7 @@ public class ClusterSyncMember {
     }
 
     private void sendResponseToClient() {
-        try (Socket clientSocket = new Socket("localhost", clientPort);
+        try (Socket clientSocket = new Socket(clientCred.getKey(), clientCred.getValue());
              PrintWriter out = new PrintWriter(clientSocket.getOutputStream(), true)) {
             out.println("COMMITTED");
         } catch (IOException e) {
@@ -169,15 +173,15 @@ public class ClusterSyncMember {
     }
 
     private void propagateRequest(int timestamp) {
-        sendRequestToMember(this.port, timestamp, id);
-        for (int port : clusterPorts) {
-            if (port != this.port) {
-                sendRequestToMember(port, timestamp, id);
+        sendRequestToMe(this.port, timestamp, id);
+        for (Map.Entry<String, Integer> tupla : clusterMembers) {
+            if (tupla.getValue() != this.port) {
+                sendRequestToMember(tupla, timestamp, id);
             }
         }
     }
 
-    private void sendRequestToMember(int memberPort, int timestamp, int senderId) {
+    private void sendRequestToMe(int memberPort, int timestamp, int senderId) {
         try (Socket socket = new Socket("localhost", memberPort);
              PrintWriter out = new PrintWriter(socket.getOutputStream(), true)) {
 
@@ -187,16 +191,26 @@ public class ClusterSyncMember {
         }
     }
 
+    private void sendRequestToMember(Map.Entry<String, Integer> tupla, int timestamp, int senderId) {
+        try (Socket socket = new Socket(tupla.getKey(), tupla.getValue());
+             PrintWriter out = new PrintWriter(socket.getOutputStream(), true)) {
+
+            out.println("PROPAGATE:" + timestamp + ":" + senderId);
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+
     private void propagateExclusion(Request topRequest) {
-        for (int port : clusterPorts) {
-            if (port != this.port) {
-                sendDeleteToMember(port, topRequest);
+        for (Map.Entry<String, Integer> tupla : clusterMembers) {
+            if (tupla.getValue() != this.port) {
+                sendDeleteToMember(tupla, topRequest);
             }
         }
     }
 
-    private void sendDeleteToMember(int memberPort, Request topRequest) {
-        try (Socket socket = new Socket("localhost", memberPort);
+    private void sendDeleteToMember(Map.Entry<String, Integer> tupla, Request topRequest) {
+        try (Socket socket = new Socket(tupla.getKey(), tupla.getValue());
              PrintWriter out = new PrintWriter(socket.getOutputStream(), true)) {
 
             out.println("DELETE:" + topRequest.timestamp + ":" + topRequest.senderId);
@@ -206,15 +220,15 @@ public class ClusterSyncMember {
     }
 
     private void propagateCriticalRegionStatus() {
-        for (int port : clusterPorts) {
-            if (port != this.port) {
-                sendStatusCrToMember(port);
+        for (Map.Entry<String, Integer> tupla : clusterMembers) {
+            if (tupla.getValue() != this.port) {
+                sendStatusCrToMember(tupla);
             }
         }
     }
 
-    private void sendStatusCrToMember(int memberPort) {
-        try (Socket socket = new Socket("localhost", memberPort);
+    private void sendStatusCrToMember(Map.Entry<String, Integer> tupla) {
+        try (Socket socket = new Socket(tupla.getKey(), tupla.getValue());
              PrintWriter out = new PrintWriter(socket.getOutputStream(), true)) {
 
             out.println("STATUS:" + requestingCS);
@@ -310,9 +324,9 @@ public class ClusterSyncMember {
 
 
     private void sendNotificationToMember(int memberId) {
-        for (int port : clusterPorts) {
-            if (port != this.port) {
-                try (Socket socket = new Socket("localhost", port);
+        for (Map.Entry<String, Integer> tupla : clusterMembers) {
+            if (tupla.getValue() != this.port) {
+                try (Socket socket = new Socket(tupla.getKey(), tupla.getValue());
                      PrintWriter out = new PrintWriter(socket.getOutputStream(), true)) {
 
                     out.println("NOTIFY:" + memberId + ":" + clientId);
@@ -324,6 +338,12 @@ public class ClusterSyncMember {
         }
     }
 
+    private void testando() {
+        System.out.println("Cliente: " + clientCred.getKey() + ", Porta: " + clientCred.getValue());
+        for(Map.Entry<String, Integer> tupla : clusterMembers) {
+            System.out.println("Membro: " + tupla.getKey() + ", Porta: " + tupla.getValue());
+        }
+    }
     public static void main(String[] args) {
         if (args.length < 2) {
             System.out.println("Uso: java ClusterSyncMember <id> <porta> [<portas dos outros membros>...]");
@@ -332,9 +352,26 @@ public class ClusterSyncMember {
 
         int id = Integer.parseInt(args[0]);
         int port = Integer.parseInt(args[1]);
-        List<Integer> clusterPorts = Arrays.stream(args).skip(2).map(Integer::parseInt).toList();
+        String clientName = args[2];
+        int clientPort = Integer.parseInt(args[3]);
+        Map.Entry<String, Integer> clientCred = new AbstractMap.SimpleEntry<>(clientName, clientPort);
 
-        ClusterSyncMember member = new ClusterSyncMember(id, port, clusterPorts);
+        // Criando uma lista para armazenar as tuplas (nome, porta)
+        List<Map.Entry<String, Integer>> clusterMembers = new ArrayList<>();
+        for (int i = 4; i < args.length; i += 2) {
+            String name = args[i];
+            int memberPort = Integer.parseInt(args[i + 1]);
+            clusterMembers.add(new AbstractMap.SimpleEntry<>(name, memberPort));
+        }
+
+//        for(Map.Entry<String, Integer> tupla : clusterMembers) {
+//            System.out.println("Membro: " + tupla.getKey() + ", Porta: " + tupla.getValue());
+//        }
+
+//        List<Integer> clusterPorts = Arrays.stream(args).skip(2).map(Integer::parseInt).toList();
+//
+        ClusterSyncMember member = new ClusterSyncMember(id, port, clusterMembers, clientCred);
+
         member.run();
     }
 }

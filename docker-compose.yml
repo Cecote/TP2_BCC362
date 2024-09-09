@@ -1,0 +1,42 @@
+version: '3.8'
+
+services:
+  member1:
+    build:
+      context: .
+      dockerfile: Dockerfile.member
+    container_name: member1
+    command: ["java", "-cp", ".", "main.java.com.distributed.ClusterSyncMember", "1", "8081", "client1", "9001", "member2", "8082"]
+    ports:
+      - "8081:8081"
+    networks:
+      - syncnet
+
+  member2:
+    build:
+      context: .
+      dockerfile: Dockerfile.member
+    container_name: member2
+    command: ["java", "-cp", ".", "main.java.com.distributed.ClusterSyncMember", "2", "8082", "client2", "9002", "member1", "8081"]
+    ports:
+      - "8082:8082"
+    networks:
+      - syncnet
+
+  client1:
+    build:
+      context: .
+      dockerfile: Dockerfile.client
+    container_name: client1
+    command: ["java", "-cp", ".", "main.java.com.distributed.Client", "1", "9001", "member1", "8081"]
+    ports:
+      - "9001:9001"
+    networks:
+      - syncnet
+    depends_on:
+      - member1
+
+
+networks:
+  syncnet:
+    driver: bridge

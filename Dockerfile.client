@@ -1,0 +1,17 @@
+# Usar uma imagem base com Java 18
+FROM openjdk:18-jdk-slim
+
+# Criar um diretório de trabalho no container que reflete a estrutura local
+WORKDIR /app/src/main/java/com/distributed
+
+# Copiar o código-fonte do diretório local para o diretório de trabalho no container
+COPY src/main/java/com/distributed/Client.java /app/src/main/java/com/distributed/
+
+# Compilar o código Java
+RUN javac /app/src/main/java/com/distributed/Client.java
+
+# Definir o diretório de trabalho para a execução
+WORKDIR /app/src
+
+# Definir o comando padrão (substituído pelo comando no docker-compose.yml)
+CMD ["java", "-cp", ".", "main.java.com.distributed.Client"]
