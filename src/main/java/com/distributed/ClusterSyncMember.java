@@ -13,6 +13,7 @@ import static java.util.Collections.sort;
 public class ClusterSyncMember {
     private int id;
     private int port;
+    private int clientPort;
     private List<Integer> clusterPorts;
     private int logicalClock = 0;
     private boolean requestingCS = false;
@@ -74,6 +75,7 @@ public class ClusterSyncMember {
             if ("REQUEST".equals(messageType)) {
                 // Trata requisições do cliente
                 clientId = Integer.parseInt(parts[1]);
+                this.clientPort = Integer.parseInt(parts[2]);
                 int timestamp = new Random().nextInt(1000);
                 logicalClock = Math.max(logicalClock, timestamp) + 1;
                 requestQueue.add(new Request(timestamp, id));
@@ -84,7 +86,6 @@ public class ClusterSyncMember {
                     return Integer.compare(a.timestamp, b.timestamp);
                 });
                 propagateRequest(timestamp);
-                out.println("COMMITTED");
                 System.out.println("Membro " + id + " notifica o Cliente " + clientId + " que a seção crítica foi concluída.1");
             } else if ("PROPAGATE".equals(messageType)) {
                 System.out.println("Entrei no PROPAGATE");
@@ -153,6 +154,15 @@ public class ClusterSyncMember {
 //                System.out.println("prepragate");
             }
 
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+
+    private void sendResponseToClient() {
+        try (Socket clientSocket = new Socket("localhost", clientPort);
+             PrintWriter out = new PrintWriter(clientSocket.getOutputStream(), true)) {
+            out.println("COMMITTED");
         } catch (IOException e) {
             e.printStackTrace();
         }
@@ -265,6 +275,7 @@ public class ClusterSyncMember {
 
     private void exitCriticalSection(Request topRequest) {
         System.out.println("Membro Peer" + id + " saindo da seção crítica.");
+        sendResponseToClient();
         if (requestQueue.contains(topRequest)){
             requestQueue.remove(topRequest);
         }
