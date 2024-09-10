@@ -25,9 +25,10 @@ public class Client {
         try (Socket socket = new Socket(clusterCred.getKey(), clusterCred.getValue());
              PrintWriter out = new PrintWriter(socket.getOutputStream(), true);
              BufferedReader in = new BufferedReader(new InputStreamReader(socket.getInputStream()))) {
+             int requestId = new Random().nextInt(100);
 
-            System.out.println("Cliente " + id + " enviou uma requisição!");
-            out.println("REQUEST:" + id + ":" + clientPort); // Adicionado prefixo "REQUEST"
+            System.out.println("Cliente " + id + " enviou uma requisição! Número da requisição: " + requestId);
+            out.println("REQUEST:" + id + ":" + clientPort + ":" + requestId); // Adicionado prefixo "REQUEST"
 
 
         } catch (IOException e) {
@@ -41,12 +42,14 @@ public class Client {
                 Socket socket = serverSocket.accept();
                 BufferedReader in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
                 String response = in.readLine();
+                String[] parts = response.split(":");
+                response = parts[0];
 
                 if ("COMMITTED".equals(response)) {
-                    System.out.println("Cliente " + id + " recebeu COMMITTED");
+                    System.out.println("Cliente " + id + " recebeu COMMITTED para a requisição " + parts[1]);
                     Thread.sleep(new Random().nextInt(7000) + 1000); // Espera de 1 a 5 segundos
                     //Thread.sleep(15000);
-                    //requestResource(); // Repetir o pedido
+                    requestResource(); // Repetir o pedido
                 } else {
                     System.out.println("Cliente " + id + " não recebeu resposta esperada.");
                     //requestResource();
@@ -74,10 +77,8 @@ public class Client {
 
 
         Client client = new Client(id, clusterCred, clientPort);
-        //for (int i = 0; i < 5; i++){
         // Inicia um thread para escutar as respostas
-            new Thread(client::listenForResponse).start();
-            client.requestResource();
-        //}
+        new Thread(client::listenForResponse).start();
+        client.requestResource();
     }
 }
