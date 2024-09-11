@@ -14,6 +14,7 @@ public class Client {
     private int id;
     private Map.Entry<String, Integer> clusterCred;
     private int clientPort;
+    private int cont = 0;
 
     public Client(int id, Map.Entry<String, Integer> clusterCred, int clientPort) {
         this.id = id;
@@ -27,7 +28,7 @@ public class Client {
              BufferedReader in = new BufferedReader(new InputStreamReader(socket.getInputStream()))) {
              int requestId = new Random().nextInt(100);
 
-            System.out.println("Cliente " + id + " enviou uma requisição! Número da requisição: " + requestId);
+            //System.out.println("Cliente " + id + " enviou uma requisição! Número da requisição: " + requestId);
             out.println("REQUEST:" + id + ":" + clientPort + ":" + requestId); // Adicionado prefixo "REQUEST"
 
 
@@ -49,12 +50,13 @@ public class Client {
                     System.out.println("Cliente " + id + " recebeu COMMITTED para a requisição " + parts[1]);
                     //Thread.sleep(new Random().nextInt(7000) + 1000); // Espera de 1 a 5 segundos
                     Thread.sleep(3000);
+
                     requestResource(); // Repetir o pedido
                 } else {
                     System.out.println("Cliente " + id + " não recebeu resposta esperada.");
                     //requestResource();
                 }
-
+            cont++;
             }
         } catch (IOException | InterruptedException e) {
             e.printStackTrace();

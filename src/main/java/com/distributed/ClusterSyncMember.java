@@ -16,7 +16,14 @@ public class ClusterSyncMember {
     private int clientPort;
     private Map.Entry<String, Integer> clientCred;
     private int internStack = -1;
-    private int ok = 0; // SÓ CRIEI ATÉ AGORA - PAREI AQUI !
+    private List<Boolean> ok = new ArrayList<>();
+    {
+        ok.add(false);
+        ok.add(false);
+        ok.add(false);
+        ok.add(false);
+        ok.add(false);
+    }
     private boolean okIsAtt = false;
     private List<Map.Entry<String, Integer>> clusterMembers = new ArrayList<>();
     private int logicalClock = 0;
@@ -24,18 +31,17 @@ public class ClusterSyncMember {
     private List<Request> requestQueue = Collections.synchronizedList(new ArrayList<>());
     private int clientId = 0;
     private Request requestAct;
+    private Boolean isOnCriticalSection = false;
 
 
     private class Request {
         int timestamp;
         int senderId;
-        int clientId;
         int requestId;
 
         Request(int timestamp, int senderId, int requestId) {
             this.timestamp = timestamp;
             this.senderId = senderId;
-            //this.clientId = clientId;
             this.requestId = requestId;
         }
     }
@@ -46,15 +52,13 @@ public class ClusterSyncMember {
         this.clusterMembers = clusterMembers;
         this.clientCred = clientCred;
         this.receivedReplies = new HashSet<>();
-        //System.out.println("Ordenando");
         this.requestQueue = new ArrayList<>();
-        //testando();
     }
 
     public void run() {
         System.out.println("Membro Peer" + id + " iniciando e ouvindo na porta " + port);
         new Thread(this::listenForRequests).start();
-        //new Thread(this::periodicEvaluation).start(); // Start periodic evaluation
+        //new Thread(this::periodicEvaluation).start();
     }
 
     private void listenForRequests() {
@@ -79,14 +83,13 @@ public class ClusterSyncMember {
             String message = in.readLine();
             String[] parts = message.split(":");
             String messageType = parts[0]; // Prefixo
-            //int timestamp = Integer.parseInt(parts[2]);
 
             if ("REQUEST".equals(messageType)) {
-                ok++;
-                System.out.println("Valor do OK: " + ok);
+                okIsAtt = false;
+                //System.out.println("Valor do OK no momento do request: " + ok);
                 // Trata requisições do cliente
                 clientId = Integer.parseInt(parts[1]);
-                //this.clientPort = Integer.parseInt(parts[2]);
+
                 int requestId = Integer.parseInt(parts[3]);
                 internStack = requestId;
 //                System.out.println("Imprimindo dentro da função: " + internStack);
@@ -102,16 +105,16 @@ public class ClusterSyncMember {
                 });
                 propagateRequest(timestamp, requestId);
                 System.out.println("Membro " + id + " recebeu request " + requestId + " do Cliente " + clientId + "!" + " Com timestamp: " + timestamp);
-                //System.out.println("Membro " + id + " notifica o Cliente " + clientId + " que a seção crítica foi concluída.1");
             } else if ("PROPAGATE".equals(messageType)) {
-
-                //System.out.println("Entrei no PROPAGATE");
                 // Trata mensagens de propagação entre membros
                 int timestamp = Integer.parseInt(parts[1]);
                 int senderId = Integer.parseInt(parts[2]);
                 int requestId = Integer.parseInt(parts[3]);
-//                System.out.println("90 " + timestamp);
-//                System.out.println("91 " + senderId);
+
+                if(senderId == id) {
+                    ok.set((id - 1), true);
+                    //System.out.println("Valor do OK quando propago pra mim mesmo: " + ok);
+                }
                 if(senderId != id){
                     requestQueue.add(new Request(timestamp, senderId, requestId));
                     Collections.sort(requestQueue, (a, b) -> {
@@ -121,14 +124,12 @@ public class ClusterSyncMember {
                         return Integer.compare(a.timestamp, b.timestamp);
                     });
                 }
-                if(requestQueue.contains(requestAct) && id != senderId && timestamp > requestAct.timestamp){
-                    okIsAtt = false;
+                if(requestAct != null){
+                    if(requestQueue.contains(requestAct) && id != senderId && timestamp > requestAct.timestamp){
+                        okIsAtt = false;
+                    }
                 }
                 isOkUpdated();
-                //evaluateCriticalSection();
-            } else if ("NOTIFY".equals(messageType)) {
-                // Trata notificações
-                notifyClient();
             } else if ("DELETE".equals(messageType)) {
                 Request deleteRequest = new Request(Integer.parseInt(parts[1]), Integer.parseInt(parts[2]), Integer.parseInt(parts[3]));
                 Iterator<Request> iterator = requestQueue.iterator();
@@ -139,28 +140,24 @@ public class ClusterSyncMember {
 
                     }
                 }
-//                for (Request req : requestQueue) {
-//                    if(req.timestamp == deleteRequest.timestamp && req.senderId == deleteRequest.senderId){
-//                        System.out.println(req);
-//                        System.out.println("Lista antes: " + requestQueue);
-//                        requestQueue.remove(req);
-//                        System.out.println("Lista depois: " + requestQueue);
-//                    }
-//                }
-//                System.out.println("prepragate");
             } else if ("OK".equals(messageType)) {
-                if(((ok >= 0 && Integer.parseInt(parts[1]) == 1) && (ok < 5  && Integer.parseInt(parts[1]) == 1))
-                    || ((ok > 0 && Integer.parseInt(parts[1]) == -1) && (ok <= 5  && Integer.parseInt(parts[1]) == -1))){
-                    ok += Integer.parseInt(parts[1]);
+                if (!isOnCriticalSection) {
+                    int valorOk = Integer.parseInt(parts[1]);
+                    int posicao = Integer.parseInt(parts[2]);
+                    if(valorOk == 1) {
+                        ok.set((posicao - 1), true);
+                    } else {
+                        ok.set((posicao - 1), false);
+                    }
+
+                    if(valorOk == -1) {
+                        okIsAtt = false;
+                    }
+                    isOkUpdated();
+                    //System.out.println("Valor do OK depois de atualizado na flag OK: " + ok);
+                    evaluateCriticalSection();
                 }
-                if(ok == 0 && internStack != -1) {
-                    ok++;
-                }
-                if(Integer.parseInt(parts[1]) == -1) {
-                    okIsAtt = false;
-                }
-                System.out.println("Valor do OK: " + ok);
-                evaluateCriticalSection();
+
             }
 
         } catch (IOException e) {
@@ -189,8 +186,8 @@ public class ClusterSyncMember {
     private void sendOkToAll(Map.Entry<String, Integer> tupla) {
         try (Socket socket = new Socket(tupla.getKey(), tupla.getValue());
              PrintWriter out = new PrintWriter(socket.getOutputStream(), true)) {
-            System.out.println("Sendei pra todes: " + tupla.getKey());
-                out.println("OK:1");
+            //System.out.println("Mensagem OK pra todos: " + tupla.getKey());
+                out.println("OK:1:" + id );
         } catch (IOException e) {
             e.printStackTrace();
         }
@@ -205,21 +202,21 @@ public class ClusterSyncMember {
     }
 
     private void sendOkToMinorsAndNotOkToMajors(Map.Entry<String, Integer> tupla){
-        List<Request> requestQueueAux = requestQueue;
+        List<Request> requestQueueAux = new ArrayList<>(requestQueue);
         for(Request req : requestQueueAux) {
             if(requestAct.timestamp > req.timestamp && req.senderId == (tupla.getValue() - 8080)){
                 try (Socket socket = new Socket(tupla.getKey(), tupla.getValue());
                      PrintWriter out = new PrintWriter(socket.getOutputStream(), true)) {
-                        System.out.println("Sendei pra: " + tupla.getKey());
-                        out.println("OK:1");
+                        //System.out.println("Mensagem OK pra: " + tupla.getKey());
+                        out.println("OK:1:" + id);
                 } catch (IOException e) {
                     e.printStackTrace();
                 }
             } else if (requestAct.timestamp < req.timestamp && req.senderId == (tupla.getValue() - 8080)) {
                 try (Socket socket = new Socket(tupla.getKey(), tupla.getValue());
                      PrintWriter out = new PrintWriter(socket.getOutputStream(), true)) {
-                    System.out.println("Sendei pra: " + tupla.getKey());
-                    out.println("OK:-1");
+                    //System.out.println("Mensagem OK pra: " + tupla.getKey());
+                    out.println("OK:-1:" + id);
                 } catch (IOException e) {
                     e.printStackTrace();
                 }
@@ -232,8 +229,8 @@ public class ClusterSyncMember {
             if (newTopRequest.senderId == (tupla.getValue() - 8080)) {
                 try (Socket socket = new Socket(tupla.getKey(), tupla.getValue());
                      PrintWriter out = new PrintWriter(socket.getOutputStream(), true)) {
-                    System.out.println("Sendei pra next: " + tupla.getKey());
-                    out.println("OK:1");
+                    //System.out.println("Mensagem OK pra next: " + tupla.getKey());
+                    out.println("OK:1:" + id);
                 } catch (IOException e) {
                     e.printStackTrace();
                 }
@@ -251,7 +248,6 @@ public class ClusterSyncMember {
     }
 
     private void propagateRequest(int timestamp, int requestId) {
-//        System.out.println("Imprimindo fora da função: " + internStack);
         sendRequestToMe(this.port, timestamp, id, requestId);
         for (Map.Entry<String, Integer> tupla : clusterMembers) {
             if (tupla.getValue() != this.port) {
@@ -298,33 +294,13 @@ public class ClusterSyncMember {
     }
 
     private void evaluateCriticalSection() {
-        //System.out.println(requestQueue);
-
-
-//        for (Request req : requestQueue) {
-//            //System.out.println("Timestamp: " + req.timestamp + ", SenderId: " + req.senderId + ", RequestId: " + req.requestId);
-//        }
         if(!requestQueue.isEmpty()){
             Request topRequest = requestQueue.get(0);
-            if (topRequest != null && topRequest.senderId == id && ok == 5) {
-                // Apenas o membro com o menor timestamp e ID correto pode entrar na seção crítica
-                //requestQueue.poll(); // Remove a requisição do topo
+            if (topRequest != null && topRequest.senderId == id && ok.get(0) && ok.get(1) && ok.get(2) && ok.get(3) && ok.get(4)) {
                 requestCriticalSection(topRequest);
             }
         }
     }
-
-//    private void periodicEvaluation() {
-//        // Avalia a seção crítica periodicamente
-//        while (true) {
-//            evaluateCriticalSection();
-//            try {
-//                Thread.sleep(1000); // Ajuste o intervalo conforme necessário
-//            } catch (InterruptedException e) {
-//                e.printStackTrace();
-//            }
-//        }
-//    }
 
     public void requestCriticalSection(Request topRequest) {
         logicalClock++;
@@ -343,6 +319,7 @@ public class ClusterSyncMember {
     }
 
     private void enterCriticalSection(Request topRequest) {
+        isOnCriticalSection = true;
         //System.out.println("Membro " + id + " entrando na seção crítica para o Cliente " + clientId);
         System.out.println("Membro Peer" + id + " entrando na seção crítica processando o request " + topRequest.requestId);
         try {
@@ -354,6 +331,7 @@ public class ClusterSyncMember {
     }
 
     private void exitCriticalSection(Request topRequest) {
+        isOnCriticalSection = false;
         System.out.println("Membro Peer" + id + " saindo da seção crítica processando o request " + topRequest.requestId);
         if(requestQueue.size() != 0) {
             Request newTopRequest = requestQueue.get(0);
@@ -361,54 +339,14 @@ public class ClusterSyncMember {
         }
         isOkUpdated();
         internStack = -1;
-        ok = 0;
+        for(int i = 0; i < 5; i++) {
+            ok.set(i, false);
+        }
         okIsAtt = false;
         sendResponseToClient(topRequest);
 
         logicalClock++;
 
-    }
-
-
-
-    private void notifyClient() {
-        // Simula notificação ao cliente
-        System.out.println("Membro Peer" + id + " notifica o Cliente " + clientId + " que a seção crítica foi concluída.");
-    }
-
-    private void notifyNextMember() {
-        if (!requestQueue.isEmpty()) {
-            Request nextRequest = requestQueue.get(0);
-            if (nextRequest != null) {
-                // Notifica o próximo membro da fila
-                sendNotificationToMember(nextRequest.senderId);
-                System.out.println("Membro Peer" + id + " envia OK! para Membro Peer" + nextRequest.senderId);
-            }
-        }
-    }
-
-
-
-    private void sendNotificationToMember(int memberId) {
-        for (Map.Entry<String, Integer> tupla : clusterMembers) {
-            if (tupla.getValue() != this.port) {
-                try (Socket socket = new Socket(tupla.getKey(), tupla.getValue());
-                     PrintWriter out = new PrintWriter(socket.getOutputStream(), true)) {
-
-                    out.println("NOTIFY:" + memberId + ":" + clientId);
-                } catch (IOException e) {
-                    e.printStackTrace();
-                }
-                break; // Envia a notificação para um membro. Pode ser necessário ajustar para notificar todos os membros.
-            }
-        }
-    }
-
-    private void testando() {
-        System.out.println("Cliente: " + clientCred.getKey() + ", Porta: " + clientCred.getValue());
-        for(Map.Entry<String, Integer> tupla : clusterMembers) {
-            System.out.println("Membro: " + tupla.getKey() + ", Porta: " + tupla.getValue());
-        }
     }
     public static void main(String[] args) {
         if (args.length < 2) {
@@ -430,12 +368,6 @@ public class ClusterSyncMember {
             clusterMembers.add(new AbstractMap.SimpleEntry<>(name, memberPort));
         }
 
-//        for(Map.Entry<String, Integer> tupla : clusterMembers) {
-//            System.out.println("Membro: " + tupla.getKey() + ", Porta: " + tupla.getValue());
-//        }
-
-//        List<Integer> clusterPorts = Arrays.stream(args).skip(2).map(Integer::parseInt).toList();
-//
         ClusterSyncMember member = new ClusterSyncMember(id, port, clusterMembers, clientCred);
 
         member.run();

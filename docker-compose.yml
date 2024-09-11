@@ -39,22 +39,26 @@ services:
       context: .
       dockerfile: Dockerfile.member
     container_name: member4
-    command: ["java", "-cp", ".", "main.java.com.distributed.ClusterSyncMember", "4", "8084", "client4", "9004", "member1", "8081", "member2", "8082", "member3", "8083", "member5", "8085"]
+    command: [ "java", "-cp", ".", "main.java.com.distributed.ClusterSyncMember", "4", "8084", "client4", "9004", "member1", "8081", "member2", "8082", "member3", "8083", "member5", "8085" ]
     ports:
       - "8084:8084"
     networks:
       - syncnet
+
 
   member5:
     build:
       context: .
       dockerfile: Dockerfile.member
     container_name: member5
-    command: ["java", "-cp", ".", "main.java.com.distributed.ClusterSyncMember", "5", "8085", "client5", "9005", "member1", "8081", "member2", "8082", "member3", "8083", "member4", "8084"]
+    command: [ "java", "-cp", ".", "main.java.com.distributed.ClusterSyncMember", "5", "8085", "client5", "9005", "member1", "8081", "member2", "8082", "member3", "8083", "member4", "8084" ]
     ports:
       - "8085:8085"
     networks:
       - syncnet
+
+
+
 
   client1:
     build:
@@ -108,6 +112,7 @@ services:
     depends_on:
       - member4
 
+
   client5:
     build:
       context: .
@@ -120,6 +125,8 @@ services:
       - syncnet
     depends_on:
       - member5
+
+
 
 
 networks:
