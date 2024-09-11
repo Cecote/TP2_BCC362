@@ -52,6 +52,7 @@ public class Client {
                     Thread.sleep(3000);
 
                     requestResource(); // Repetir o pedido
+
                 } else {
                     System.out.println("Cliente " + id + " não recebeu resposta esperada.");
                     //requestResource();

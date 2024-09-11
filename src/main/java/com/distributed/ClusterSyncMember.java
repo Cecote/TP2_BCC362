@@ -26,8 +26,6 @@ public class ClusterSyncMember {
     }
     private boolean okIsAtt = false;
     private List<Map.Entry<String, Integer>> clusterMembers = new ArrayList<>();
-    private int logicalClock = 0;
-    private Set<Integer> receivedReplies;
     private List<Request> requestQueue = Collections.synchronizedList(new ArrayList<>());
     private int clientId = 0;
     private Request requestAct;
@@ -51,7 +49,6 @@ public class ClusterSyncMember {
         this.port = port;
         this.clusterMembers = clusterMembers;
         this.clientCred = clientCred;
-        this.receivedReplies = new HashSet<>();
         this.requestQueue = new ArrayList<>();
     }
 
@@ -94,7 +91,6 @@ public class ClusterSyncMember {
                 internStack = requestId;
 //                System.out.println("Imprimindo dentro da função: " + internStack);
                 int timestamp = new Random().nextInt(1000);
-                logicalClock = Math.max(logicalClock, timestamp) + 1;
                 requestAct = new Request(timestamp, id, requestId);
                 requestQueue.add(requestAct);
                 Collections.sort(requestQueue, (a, b) -> {
@@ -103,6 +99,7 @@ public class ClusterSyncMember {
                     }
                     return Integer.compare(a.timestamp, b.timestamp);
                 });
+
                 propagateRequest(timestamp, requestId);
                 System.out.println("Membro " + id + " recebeu request " + requestId + " do Cliente " + clientId + "!" + " Com timestamp: " + timestamp);
             } else if ("PROPAGATE".equals(messageType)) {
@@ -303,7 +300,7 @@ public class ClusterSyncMember {
     }
 
     public void requestCriticalSection(Request topRequest) {
-        logicalClock++;
+
 
 
         if (requestQueue.contains(topRequest)){
@@ -324,7 +321,7 @@ public class ClusterSyncMember {
         System.out.println("Membro Peer" + id + " entrando na seção crítica processando o request " + topRequest.requestId);
         try {
             //Thread.sleep(new Random().nextInt(800) + 200); // Simula trabalho na seção crítica
-            Thread.sleep(10000);
+            Thread.sleep(5000);
         } catch (InterruptedException e) {
             e.printStackTrace();
         }
@@ -345,7 +342,6 @@ public class ClusterSyncMember {
         okIsAtt = false;
         sendResponseToClient(topRequest);
 
-        logicalClock++;
 
     }
     public static void main(String[] args) {
