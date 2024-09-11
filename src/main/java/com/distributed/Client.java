@@ -47,8 +47,8 @@ public class Client {
 
                 if ("COMMITTED".equals(response)) {
                     System.out.println("Cliente " + id + " recebeu COMMITTED para a requisição " + parts[1]);
-                    Thread.sleep(new Random().nextInt(7000) + 1000); // Espera de 1 a 5 segundos
-                    //Thread.sleep(15000);
+                    //Thread.sleep(new Random().nextInt(7000) + 1000); // Espera de 1 a 5 segundos
+                    Thread.sleep(3000);
                     requestResource(); // Repetir o pedido
                 } else {
                     System.out.println("Cliente " + id + " não recebeu resposta esperada.");
@@ -61,7 +61,7 @@ public class Client {
         }
     }
 
-    public static void main(String[] args) {
+    public static void main(String[] args) throws InterruptedException {
         if (args.length != 4) {
             System.out.println("Uso: java Client <id> <porta do cliente> <nome do membro do cluster> <porta do cluster> ");
             return;
@@ -79,6 +79,7 @@ public class Client {
         Client client = new Client(id, clusterCred, clientPort);
         // Inicia um thread para escutar as respostas
         new Thread(client::listenForResponse).start();
+        Thread.sleep(1000);
         client.requestResource();
     }
 }
