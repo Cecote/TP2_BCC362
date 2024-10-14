@@ -5,6 +5,10 @@ import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
 
 public class StorageServer {
+    private static final long HEARTBEAT_TIMEOUT = 5000;
+    private int requestCounter = 0;
+    private boolean iHaveRequest = false;
+    //private int timeStampOrder
     private int id;
     private boolean myrequest = false;
     private boolean primaryAndWriter = false;
@@ -21,6 +25,7 @@ public class StorageServer {
 
     // Timestamps dos outros servidores
     private Map<String, Long> serverTimestamps = new HashMap<>();
+    private Map<String, Long> serverTimestampsPing = new HashMap<>();
 
     public StorageServer(int id, int port, List<Map.Entry<String, Integer>> otherStorageServers) {
         this.id = id;
@@ -39,6 +44,10 @@ public class StorageServer {
         } catch (InterruptedException e) {
             e.printStackTrace();
         }
+
+        // Adicionar aqui as chamadas para enviar e monitorar heartbeats
+        sendHeartbeats();  // Começa a enviar heartbeats para os outros storages
+        monitorHeartbeats();  // Começa a monitorar os heartbeats recebidos
 
         // Enviar o timestamp para os outros servidores em paralelo
         shareTimestampWithCluster();
@@ -82,7 +91,11 @@ public class StorageServer {
                     long receivedTimestamp = Long.parseLong(parts[2]);
                     serverTimestamps.put(serverPort, receivedTimestamp);
                     System.out.println("Recebi timestamp de " + serverPort + ": " + receivedTimestamp);
+                    System.out.println("Timestamps antes de tudo: " + serverTimestamps);
                 } else if (message != null && message.startsWith("WRITE")) {
+                    System.out.println("Recebi o request!");
+                    iHaveRequest = true;
+                    requestCounter++;
                     myrequest = true;
                     clientSocketGlobal = socket;
                     if(iAmPrimary) {
@@ -94,12 +107,20 @@ public class StorageServer {
                     this.memberRequestTimestamp = Integer.parseInt(parts[3]);
                     System.out.println("Request feito pelo membro: " + memberIdAct);
                     handleWriteRequest(message);
+                } else if (message != null && message.startsWith("HEARTBEAT")) {
+                    // Atualizar o timestamp do servidor que enviou o heartbeat
+                    String[] parts = message.split(" ");
+                    String serverPort = parts[1];
+                    serverTimestampsPing.put(serverPort, System.currentTimeMillis());  // Atualiza o último heartbeat recebido
+                    //System.out.println("Recebi heartbeat de " + serverPort);
+
                 } else if (message != null && message.startsWith("NEW_VALUE")) {
                     String[] parts = message.split(" ");
                     counter = Integer.parseInt(parts[1]);
                     System.out.println("Novo valor: " + counter);
 
                     if(myrequest && clientSocketGlobal != null) {
+                        iHaveRequest = false;
                         try (PrintWriter out = new PrintWriter(clientSocketGlobal.getOutputStream(), true)) {
                             out.println("COMMITED");
                             System.out.println("Resposta COMMITED enviada para o solicitante.");
@@ -109,6 +130,9 @@ public class StorageServer {
                         myrequest = false;
                     } else if(myrequest && clientSocketGlobal == null) {
                         System.out.println("Erro: socket do cliente não foi encontrado.");
+                    }
+                    if(!iHaveRequest && requestCounter == 3 && !iAmPrimary){
+                        System.exit(0);
                     }
                 } else if (message != null && message.startsWith("WRITE2")) {
                     String[] parts = message.split(":");
@@ -127,12 +151,16 @@ public class StorageServer {
         // Adiciona o próprio timestamp
         serverTimestamps.put(Integer.toString(port), timestamp);
 
+        System.out.println("Timestamps antes: " + serverTimestamps);
+
         // Verifica o menor timestamp
         String primaryServer = serverTimestamps.entrySet()
                 .stream()
                 .min(Map.Entry.comparingByValue())
                 .get().getKey();
-
+        System.out.println("Porta: "+ port + " Timestamp: " + timestamp);
+        System.out.println("Primário: " + primaryServer);
+        System.out.println("Timestamps depois: " + serverTimestamps);
         if (primaryServer.equals(Integer.toString(port))) {
             iAmPrimary = true;
             System.out.println("Eu sou o primário!");
@@ -148,6 +176,12 @@ public class StorageServer {
     private void handleWriteRequest(String message) {
         if (iAmPrimary) {
             // Incrementa o valor
+
+            try {
+                Thread.sleep(3000);
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
             int newValue = counter++;
             System.out.println("Novo valor: " + newValue);
 
@@ -206,6 +240,61 @@ public class StorageServer {
             }
         }
     }
+
+    private void sendHeartbeats() {
+        new Thread(() -> {
+            while (true) {
+                try {
+                    for (Map.Entry<String, Integer> server : otherStorageServers) {
+                        try (Socket socket = new Socket(server.getKey(), server.getValue())) {
+                            PrintWriter out = new PrintWriter(socket.getOutputStream(), true);
+                            out.println("HEARTBEAT " + port);
+                        } catch (IOException e) {
+                            System.out.println("OPA1");
+                        }
+                    }
+                    Thread.sleep(1000);  // Envia heartbeats a cada 5 segundos (pode ajustar o tempo)
+                } catch (InterruptedException e) {
+                    System.out.println("OPA2");
+                    e.printStackTrace();
+                }
+            }
+        }).start();
+    }
+
+
+    private void monitorHeartbeats() {
+        new Thread(() -> {
+            while (true) {
+                try {
+                    Thread.sleep(3000);  // Exemplo de intervalo de verificação de 10 segundos
+                    long currentTime = System.currentTimeMillis();
+                    for (Map.Entry<String, Long> entry : serverTimestampsPing.entrySet()) {
+                        if (currentTime - entry.getValue() > HEARTBEAT_TIMEOUT) {
+                            System.out.println("Falha detectada no servidor: " + entry.getKey());
+                            // Marcar esse storage como inativo
+                            removeEntryByValue(Integer.parseInt(entry.getKey()));
+                        }
+                    }
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
+                }
+            }
+        }).start();
+    }
+
+    public void removeEntryByValue(int valueToRemove) {
+        Iterator<Map.Entry<String, Integer>> iterator = otherStorageServers.iterator();
+
+        // Percorre a lista e remove os itens cujo valor é igual a valueToRemove
+        while (iterator.hasNext()) {
+            Map.Entry<String, Integer> entry = iterator.next();
+            if (entry.getValue().equals(valueToRemove)) {
+                iterator.remove(); // Remover a entrada
+            }
+        }
+    }
+
 
     public static void main(String[] args) {
         if (args.length < 3) {

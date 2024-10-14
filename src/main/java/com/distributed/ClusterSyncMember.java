@@ -370,7 +370,8 @@ public class ClusterSyncMember {
             }
 
         } catch (IOException e) {
-            e.printStackTrace();
+            System.out.println("FALHA NA CONEXÃO!");
+            writeToStorage(request);
         }
     }
 
