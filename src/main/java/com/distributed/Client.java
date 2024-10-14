@@ -28,7 +28,7 @@ public class Client {
              BufferedReader in = new BufferedReader(new InputStreamReader(socket.getInputStream()))) {
              int requestId = new Random().nextInt(100);
 
-            //System.out.println("Cliente " + id + " enviou uma requisição! Número da requisição: " + requestId);
+            System.out.println("Cliente " + id + " enviou uma requisição! Número da requisição: " + requestId);
             out.println("REQUEST:" + id + ":" + clientPort + ":" + requestId); // Adicionado prefixo "REQUEST"
 
 

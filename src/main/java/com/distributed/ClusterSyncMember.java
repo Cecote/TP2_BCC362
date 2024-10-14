@@ -26,6 +26,8 @@ public class ClusterSyncMember {
     }
     private boolean okIsAtt = false;
     private List<Map.Entry<String, Integer>> clusterMembers = new ArrayList<>();
+
+    private List<Map.Entry<String, Integer>> storageMembers = new ArrayList<>();
     private List<Request> requestQueue = Collections.synchronizedList(new ArrayList<>());
     private int clientId = 0;
     private Request requestAct;
@@ -44,9 +46,10 @@ public class ClusterSyncMember {
         }
     }
 
-    public ClusterSyncMember(int id, int port, List<Map.Entry<String, Integer>> clusterMembers, Map.Entry<String, Integer> clientCred) {
+    public ClusterSyncMember(int id, int port, List<Map.Entry<String, Integer>> storageMembers, List<Map.Entry<String, Integer>> clusterMembers, Map.Entry<String, Integer> clientCred) {
         this.id = id;
         this.port = port;
+        this.storageMembers = storageMembers;
         this.clusterMembers = clusterMembers;
         this.clientCred = clientCred;
         this.requestQueue = new ArrayList<>();
@@ -103,6 +106,7 @@ public class ClusterSyncMember {
                 propagateRequest(timestamp, requestId);
                 System.out.println("Membro " + id + " recebeu request " + requestId + " do Cliente " + clientId + "!" + " Com timestamp: " + timestamp);
             } else if ("PROPAGATE".equals(messageType)) {
+                System.out.println("Op~ção propaget");
                 // Trata mensagens de propagação entre membros
                 int timestamp = Integer.parseInt(parts[1]);
                 int senderId = Integer.parseInt(parts[2]);
@@ -155,6 +159,8 @@ public class ClusterSyncMember {
                     evaluateCriticalSection();
                 }
 
+            } else if("COMMITED".equals(messageType)) {
+                System.out.println("TA CHEGANDO ESSA MERDA");
             }
 
         } catch (IOException e) {
@@ -163,12 +169,18 @@ public class ClusterSyncMember {
     }
 
     private void isOkUpdated() {
+        System.out.println("Entrou no isOkUpdated");
+        System.out.println(okIsAtt);
+        System.out.println(internStack);
         if(!okIsAtt) {
             if(internStack == -1) {
                 propagateOkToAll();
             } else {
                 propagateOkToMinorsAndNotOkToMajors();
             }
+        }
+        if(okIsAtt && internStack == -1) {
+            propagateOkToAll();
         }
         okIsAtt = true;
     }
@@ -236,6 +248,9 @@ public class ClusterSyncMember {
     }
 
     private void sendResponseToClient(Request topRequest) {
+        System.out.println("entrei no metodo de resposgtfa");
+        System.out.println(clientCred.getKey());
+        System.out.println(clientCred.getValue());
         try (Socket clientSocket = new Socket(clientCred.getKey(), clientCred.getValue());
              PrintWriter out = new PrintWriter(clientSocket.getOutputStream(), true)) {
             out.println("COMMITTED:"+topRequest.requestId);
@@ -245,6 +260,7 @@ public class ClusterSyncMember {
     }
 
     private void propagateRequest(int timestamp, int requestId) {
+        System.out.println("Entrou no propagate");
         sendRequestToMe(this.port, timestamp, id, requestId);
         for (Map.Entry<String, Integer> tupla : clusterMembers) {
             if (tupla.getValue() != this.port) {
@@ -254,6 +270,7 @@ public class ClusterSyncMember {
     }
 
     private void sendRequestToMe(int memberPort, int timestamp, int senderId, int requestId) {
+        System.out.println("Entrou no propagateToMe");
         try (Socket socket = new Socket("localhost", memberPort);
              PrintWriter out = new PrintWriter(socket.getOutputStream(), true)) {
 
@@ -293,7 +310,7 @@ public class ClusterSyncMember {
     private void evaluateCriticalSection() {
         if(!requestQueue.isEmpty()){
             Request topRequest = requestQueue.get(0);
-            if (topRequest != null && topRequest.senderId == id && ok.get(0) && ok.get(1) && ok.get(2) && ok.get(3) && ok.get(4)) {
+            if (topRequest != null && topRequest.senderId == id && ok.get(0) && ok.get(1)) {
                 requestCriticalSection(topRequest);
             }
         }
@@ -319,10 +336,40 @@ public class ClusterSyncMember {
         isOnCriticalSection = true;
         //System.out.println("Membro " + id + " entrando na seção crítica para o Cliente " + clientId);
         System.out.println("Membro Peer" + id + " entrando na seção crítica processando o request " + topRequest.requestId);
+
+        writeToStorage(topRequest);
+
         try {
             //Thread.sleep(new Random().nextInt(800) + 200); // Simula trabalho na seção crítica
             Thread.sleep(5000);
         } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
+    }
+
+    private void writeToStorage(Request request) {
+        System.out.println("Opa!");
+        Random rand = new Random();
+        int randomIndex = rand.nextInt(storageMembers.size());
+        Map.Entry<String, Integer> randomEntry = storageMembers.get(randomIndex);
+
+        try (Socket storageSocket = new Socket(randomEntry.getKey(), randomEntry.getValue());
+             PrintWriter out = new PrintWriter(storageSocket.getOutputStream(), true);
+             BufferedReader in = new BufferedReader(new InputStreamReader(storageSocket.getInputStream()))) {
+
+            // Envia a requisição para o storage
+            out.println("WRITE:" + request.requestId + ":" + request.senderId + ":" + request.timestamp);
+            System.out.println("Membro Peer" + id + " enviou a requisição " + request.requestId + " para o Cluster de Storages");
+
+            // Aguardar a resposta do StorageServer
+            String response = in.readLine(); // Aguarda até receber uma linha de resposta
+            if (response != null && response.equals("COMMITED")) {
+                System.out.println("Requisição " + request.requestId + " confirmada pelo StorageServer");
+            } else {
+                System.out.println("Erro ao confirmar a requisição " + request.requestId);
+            }
+
+        } catch (IOException e) {
             e.printStackTrace();
         }
     }
@@ -340,6 +387,7 @@ public class ClusterSyncMember {
             ok.set(i, false);
         }
         okIsAtt = false;
+        System.out.println("Antes de enviar ok para o cliente");
         sendResponseToClient(topRequest);
 
 
@@ -352,19 +400,30 @@ public class ClusterSyncMember {
 
         int id = Integer.parseInt(args[0]);
         int port = Integer.parseInt(args[1]);
+
         String clientName = args[2];
         int clientPort = Integer.parseInt(args[3]);
         Map.Entry<String, Integer> clientCred = new AbstractMap.SimpleEntry<>(clientName, clientPort);
 
-        // Criando uma lista para armazenar as tuplas (nome, porta)
+        // Criando uma lista para armazenar as tuplas storage (nome, porta)
+        List<Map.Entry<String, Integer>> storageMembers = new ArrayList<>();
+        for (int i = 4; i < 10; i += 2) {
+            String name = args[i];
+            int memberPort = Integer.parseInt(args[i + 1]);
+            storageMembers.add(new AbstractMap.SimpleEntry<>(name, memberPort));
+        }
+
+        // Criando uma lista para armazenar as tuplas cluster members (nome, porta)
         List<Map.Entry<String, Integer>> clusterMembers = new ArrayList<>();
-        for (int i = 4; i < args.length; i += 2) {
+        for (int i = 10; i < args.length; i += 2) {
             String name = args[i];
             int memberPort = Integer.parseInt(args[i + 1]);
             clusterMembers.add(new AbstractMap.SimpleEntry<>(name, memberPort));
         }
+        System.out.println("ClusterStorage: " + storageMembers);
+        System.out.println("MembersSync: " + clusterMembers);
 
-        ClusterSyncMember member = new ClusterSyncMember(id, port, clusterMembers, clientCred);
+        ClusterSyncMember member = new ClusterSyncMember(id, port, storageMembers, clusterMembers, clientCred);
 
         member.run();
     }
