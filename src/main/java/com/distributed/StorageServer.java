@@ -177,7 +177,7 @@ public class StorageServer {
         if (iAmPrimary) {
             primaryAndWriter = true;
             // Incrementa o valor
-            if(iHaveRequest && requestCounter >= 3){
+            if(iHaveRequest && requestCounter == 3){
                 System.out.println("Ifinho");
                 System.exit(0);
             }
@@ -278,6 +278,7 @@ public class StorageServer {
                             iterator.remove();
                             System.out.println("Clusters restantes: " + otherStorageServers);
                             System.out.println("Eu tenho request? " + myrequest);
+                            requestCounter = 10;
                             if(myrequest){
                                 handleWriteRequest("");
                             }
