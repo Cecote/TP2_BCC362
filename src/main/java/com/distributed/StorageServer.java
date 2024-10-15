@@ -92,8 +92,7 @@ public class StorageServer {
                     serverTimestamps.put(serverPort, receivedTimestamp);
                     System.out.println("Recebi timestamp de " + serverPort + ": " + receivedTimestamp);
                     System.out.println("Timestamps antes de tudo: " + serverTimestamps);
-                } else if (message != null && message.startsWith("WRITE")) {
-                    System.out.println("Recebi o request!");
+                } else if (message != null && message.startsWith("WRITE1")) {
                     iHaveRequest = true;
                     requestCounter++;
                     myrequest = true;
@@ -105,6 +104,7 @@ public class StorageServer {
                     this.memberIdAct = Integer.parseInt(parts[2]);
                     this.memberRequestId = Integer.parseInt(parts[1]);
                     this.memberRequestTimestamp = Integer.parseInt(parts[3]);
+                    System.out.println("Recebi o request nº: " + memberRequestId);
                     System.out.println("Request feito pelo membro: " + memberIdAct);
                     handleWriteRequest(message);
                 } else if (message != null && message.startsWith("HEARTBEAT")) {
