@@ -92,8 +92,7 @@ public class StorageServer {
                     serverTimestamps.put(serverPort, receivedTimestamp);
                     System.out.println("Recebi timestamp de " + serverPort + ": " + receivedTimestamp);
                     System.out.println("Timestamps antes de tudo: " + serverTimestamps);
-                } else if (message != null && message.startsWith("WRITE")) {
-                    System.out.println("Recebi o request!");
+                } else if (message != null && message.startsWith("WRITE1")) {
                     iHaveRequest = true;
                     requestCounter++;
                     myrequest = true;
@@ -105,6 +104,7 @@ public class StorageServer {
                     this.memberIdAct = Integer.parseInt(parts[2]);
                     this.memberRequestId = Integer.parseInt(parts[1]);
                     this.memberRequestTimestamp = Integer.parseInt(parts[3]);
+                    System.out.println("Recebi o request nº: " + memberRequestId);
                     System.out.println("Request feito pelo membro: " + memberIdAct);
                     handleWriteRequest(message);
                 } else if (message != null && message.startsWith("HEARTBEAT")) {
@@ -130,9 +130,6 @@ public class StorageServer {
                         myrequest = false;
                     } else if(myrequest && clientSocketGlobal == null) {
                         System.out.println("Erro: socket do cliente não foi encontrado.");
-                    }
-                    if(!iHaveRequest && requestCounter == 3 && !iAmPrimary){
-                        System.exit(0);
                     }
                 } else if (message != null && message.startsWith("WRITE2")) {
                     String[] parts = message.split(":");
@@ -204,6 +201,9 @@ public class StorageServer {
 
             System.out.println("Retorno ao Membro: "  + " porta: "  + " feito com sucesso!");
         } else {
+            if(iHaveRequest && requestCounter == 3 && !iAmPrimary){
+                System.exit(0);
+            }
             // Repassa a requisição para o primário
             forwardRequestToPrimary(message);
         }
@@ -251,6 +251,7 @@ public class StorageServer {
                             out.println("HEARTBEAT " + port);
                         } catch (IOException e) {
                             System.out.println("OPA1");
+                            removeEntryByValue(server.getValue());
                         }
                     }
                     Thread.sleep(1000);  // Envia heartbeats a cada 5 segundos (pode ajustar o tempo)
@@ -273,7 +274,7 @@ public class StorageServer {
                         if (currentTime - entry.getValue() > HEARTBEAT_TIMEOUT) {
                             System.out.println("Falha detectada no servidor: " + entry.getKey());
                             // Marcar esse storage como inativo
-                            removeEntryByValue(Integer.parseInt(entry.getKey()));
+                            //removeEntryByValue(Integer.parseInt(entry.getKey()));
                         }
                     }
                 } catch (InterruptedException e) {
