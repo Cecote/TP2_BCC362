@@ -308,7 +308,7 @@ public class ClusterSyncMember {
     private void evaluateCriticalSection() {
         if(!requestQueue.isEmpty()){
             Request topRequest = requestQueue.get(0);
-            if (topRequest != null && topRequest.senderId == id && ok.get(0) && ok.get(1) && ok.get(2) && ok.get(3) && ok.get(4)) {
+            if (topRequest != null && topRequest.senderId == id && ok.get(0) && ok.get(1)) {
                 requestCriticalSection(topRequest);
             }
         }
