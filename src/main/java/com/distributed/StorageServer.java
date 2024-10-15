@@ -199,7 +199,7 @@ public class StorageServer {
                 System.out.println("Erro: socket do cliente não foi encontrado.");
             }
 
-            System.out.println("Retorno ao Membro: "  + " porta: "  + " feito com sucesso!");
+            //System.out.println("Retorno ao Membro: "  + " porta: "  + " feito com sucesso!");
         } else {
             if(iHaveRequest && requestCounter == 3 && !iAmPrimary){
                 System.exit(0);
