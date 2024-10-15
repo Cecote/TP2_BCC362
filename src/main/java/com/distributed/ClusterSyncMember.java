@@ -348,7 +348,7 @@ public class ClusterSyncMember {
     }
 
     private void writeToStorage(Request request) {
-        System.out.println("Opa!");
+        //System.out.println("Opa!");
         Random rand = new Random();
         int randomIndex = rand.nextInt(storageMembers.size());
         Map.Entry<String, Integer> randomEntry = storageMembers.get(randomIndex);
