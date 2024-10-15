@@ -5,7 +5,7 @@ import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
 
 public class StorageServer {
-    private static final long HEARTBEAT_TIMEOUT = 5000;
+    private static final long HEARTBEAT_TIMEOUT = 10000;
     private int requestCounter = 0;
     private boolean iHaveRequest = false;
     //private int timeStampOrder
@@ -91,7 +91,7 @@ public class StorageServer {
                     long receivedTimestamp = Long.parseLong(parts[2]);
                     serverTimestamps.put(serverPort, receivedTimestamp);
                     System.out.println("Recebi timestamp de " + serverPort + ": " + receivedTimestamp);
-                    System.out.println("Timestamps antes de tudo: " + serverTimestamps);
+                  //  System.out.println("Timestamps antes de tudo: " + serverTimestamps);
                 } else if (message != null && message.startsWith("WRITE1")) {
                     iHaveRequest = true;
                     requestCounter++;
@@ -151,16 +151,16 @@ public class StorageServer {
         // Adiciona o próprio timestamp
         serverTimestamps.put(Integer.toString(port), timestamp);
 
-        System.out.println("Timestamps antes: " + serverTimestamps);
+      //  System.out.println("Timestamps antes: " + serverTimestamps);
 
         // Verifica o menor timestamp
         String primaryServer = serverTimestamps.entrySet()
                 .stream()
                 .min(Map.Entry.comparingByValue())
                 .get().getKey();
-        System.out.println("Porta: "+ port + " Timestamp: " + timestamp);
-        System.out.println("Primário: " + primaryServer);
-        System.out.println("Timestamps depois: " + serverTimestamps);
+     //   System.out.println("Porta: "+ port + " Timestamp: " + timestamp);
+    //    System.out.println("Primário: " + primaryServer);
+     //   System.out.println("Timestamps depois: " + serverTimestamps);
         if (primaryServer.equals(Integer.toString(port))) {
             iAmPrimary = true;
             System.out.println("Eu sou o primário!");
@@ -182,11 +182,11 @@ public class StorageServer {
             } catch (InterruptedException e) {
                 e.printStackTrace();
             }
-            int newValue = counter++;
-            System.out.println("Novo valor: " + newValue);
+            counter++;
+            System.out.println("Novo valor: " + counter);
 
             // Propaga o novo valor para os outros servidores
-            propagateNewValueToCluster(newValue);
+            propagateNewValueToCluster(counter);
 
             //Retorno para o commited para o membro do clustersync no caso de eu ser o primário e ter recebido a requisição direto dele
             if(myrequest && clientSocketGlobal != null && primaryAndWriter) {
@@ -202,7 +202,7 @@ public class StorageServer {
                 System.out.println("Erro: socket do cliente não foi encontrado.");
             }
 
-            System.out.println("Retorno ao Membro: "  + " porta: "  + " feito com sucesso!");
+            //System.out.println("Retorno ao Membro: "  + " porta: "  + " feito com sucesso!");
         } else {
             // Repassa a requisição para o primário
             forwardRequestToPrimary(message);
@@ -250,12 +250,13 @@ public class StorageServer {
                             PrintWriter out = new PrintWriter(socket.getOutputStream(), true);
                             out.println("HEARTBEAT " + port);
                         } catch (IOException e) {
-                            System.out.println("OPA1");
+                            //System.out.println("OPA1");
+                            requestCounter = 10;
                         }
                     }
                     Thread.sleep(1000);  // Envia heartbeats a cada 5 segundos (pode ajustar o tempo)
                 } catch (InterruptedException e) {
-                    System.out.println("OPA2");
+                   System.out.println("OPA2");
                     e.printStackTrace();
                 }
             }

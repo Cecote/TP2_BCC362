@@ -70,6 +70,13 @@ public class Client {
             return;
         }
 
+//        try {
+//            //Thread.sleep(new Random().nextInt(800) + 200); // Simula trabalho na seção crítica
+//            Thread.sleep(30000);
+//        } catch (InterruptedException e) {
+//            e.printStackTrace();
+//        }
+
         int id = Integer.parseInt(args[0]);
         int clientPort = Integer.parseInt(args[1]);
         String clusterName = args[2];
