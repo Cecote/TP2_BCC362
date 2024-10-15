@@ -358,7 +358,7 @@ public class ClusterSyncMember {
              BufferedReader in = new BufferedReader(new InputStreamReader(storageSocket.getInputStream()))) {
 
             // Envia a requisição para o storage
-            out.println("WRITE:" + request.requestId + ":" + request.senderId + ":" + request.timestamp);
+            out.println("WRITE1:" + request.requestId + ":" + request.senderId + ":" + request.timestamp);
             System.out.println("Membro Peer" + id + " enviou a requisição " + request.requestId + " para o Cluster de Storages");
 
             // Aguardar a resposta do StorageServer

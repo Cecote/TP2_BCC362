@@ -82,7 +82,7 @@ public class StorageServer {
                     long receivedTimestamp = Long.parseLong(parts[2]);
                     serverTimestamps.put(serverPort, receivedTimestamp);
                     System.out.println("Recebi timestamp de " + serverPort + ": " + receivedTimestamp);
-                } else if (message != null && message.startsWith("WRITE")) {
+                } else if (message != null && message.startsWith("WRITE1")) {
                     myrequest = true;
                     clientSocketGlobal = socket;
                     if(iAmPrimary) {
@@ -92,6 +92,7 @@ public class StorageServer {
                     this.memberIdAct = Integer.parseInt(parts[2]);
                     this.memberRequestId = Integer.parseInt(parts[1]);
                     this.memberRequestTimestamp = Integer.parseInt(parts[3]);
+                    System.out.println("Recebi o request nº : " + memberRequestId);
                     System.out.println("Request feito pelo membro: " + memberIdAct);
                     handleWriteRequest(message);
                 } else if (message != null && message.startsWith("NEW_VALUE")) {
@@ -168,7 +169,7 @@ public class StorageServer {
                 System.out.println("Erro: socket do cliente não foi encontrado.");
             }
 
-            System.out.println("Retorno ao Membro: "  + " porta: "  + " feito com sucesso!");
+            //System.out.println("Retorno ao Membro: "  + " porta: "  + " feito com sucesso!");
         } else {
             // Repassa a requisição para o primário
             forwardRequestToPrimary(message);
