@@ -149,11 +149,11 @@ public class StorageServer {
     private void handleWriteRequest(String message) {
         if (iAmPrimary) {
             // Incrementa o valor
-            int newValue = counter++;
-            System.out.println("Novo valor: " + newValue);
+            counter++;
+            System.out.println("Novo valor: " + counter);
 
             // Propaga o novo valor para os outros servidores
-            propagateNewValueToCluster(newValue);
+            propagateNewValueToCluster(counter);
 
             //Retorno para o commited para o membro do clustersync no caso de eu ser o primário e ter recebido a requisição direto dele
             if(myrequest && clientSocketGlobal != null && primaryAndWriter) {

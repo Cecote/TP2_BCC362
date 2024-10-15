@@ -106,7 +106,7 @@ public class ClusterSyncMember {
                 propagateRequest(timestamp, requestId);
                 System.out.println("Membro " + id + " recebeu request " + requestId + " do Cliente " + clientId + "!" + " Com timestamp: " + timestamp);
             } else if ("PROPAGATE".equals(messageType)) {
-                System.out.println("Op~ção propaget");
+                //.println("Op~ção propaget");
                 // Trata mensagens de propagação entre membros
                 int timestamp = Integer.parseInt(parts[1]);
                 int senderId = Integer.parseInt(parts[2]);
@@ -159,8 +159,6 @@ public class ClusterSyncMember {
                     evaluateCriticalSection();
                 }
 
-            } else if("COMMITED".equals(messageType)) {
-                System.out.println("TA CHEGANDO ESSA MERDA");
             }
 
         } catch (IOException e) {
@@ -169,9 +167,9 @@ public class ClusterSyncMember {
     }
 
     private void isOkUpdated() {
-        System.out.println("Entrou no isOkUpdated");
-        System.out.println(okIsAtt);
-        System.out.println(internStack);
+        //System.out.println("Entrou no isOkUpdated");
+        //System.out.println(okIsAtt);
+        //System.out.println(internStack);
         if(!okIsAtt) {
             if(internStack == -1) {
                 propagateOkToAll();
@@ -248,9 +246,9 @@ public class ClusterSyncMember {
     }
 
     private void sendResponseToClient(Request topRequest) {
-        System.out.println("entrei no metodo de resposgtfa");
-        System.out.println(clientCred.getKey());
-        System.out.println(clientCred.getValue());
+        //System.out.println("entrei no metodo de resposgtfa");
+        //System.out.println(clientCred.getKey());
+        //System.out.println(clientCred.getValue());
         try (Socket clientSocket = new Socket(clientCred.getKey(), clientCred.getValue());
              PrintWriter out = new PrintWriter(clientSocket.getOutputStream(), true)) {
             out.println("COMMITTED:"+topRequest.requestId);
@@ -260,7 +258,7 @@ public class ClusterSyncMember {
     }
 
     private void propagateRequest(int timestamp, int requestId) {
-        System.out.println("Entrou no propagate");
+        //System.out.println("Entrou no propagate");
         sendRequestToMe(this.port, timestamp, id, requestId);
         for (Map.Entry<String, Integer> tupla : clusterMembers) {
             if (tupla.getValue() != this.port) {
@@ -270,7 +268,7 @@ public class ClusterSyncMember {
     }
 
     private void sendRequestToMe(int memberPort, int timestamp, int senderId, int requestId) {
-        System.out.println("Entrou no propagateToMe");
+        //System.out.println("Entrou no propagateToMe");
         try (Socket socket = new Socket("localhost", memberPort);
              PrintWriter out = new PrintWriter(socket.getOutputStream(), true)) {
 
@@ -310,7 +308,7 @@ public class ClusterSyncMember {
     private void evaluateCriticalSection() {
         if(!requestQueue.isEmpty()){
             Request topRequest = requestQueue.get(0);
-            if (topRequest != null && topRequest.senderId == id && ok.get(0) && ok.get(1)) {
+            if (topRequest != null && topRequest.senderId == id && ok.get(0) && ok.get(1) && ok.get(2) && ok.get(3) && ok.get(4)) {
                 requestCriticalSection(topRequest);
             }
         }
@@ -348,7 +346,7 @@ public class ClusterSyncMember {
     }
 
     private void writeToStorage(Request request) {
-        System.out.println("Opa!");
+        //System.out.println("Opa!");
         Random rand = new Random();
         int randomIndex = rand.nextInt(storageMembers.size());
         Map.Entry<String, Integer> randomEntry = storageMembers.get(randomIndex);
@@ -387,7 +385,7 @@ public class ClusterSyncMember {
             ok.set(i, false);
         }
         okIsAtt = false;
-        System.out.println("Antes de enviar ok para o cliente");
+       // System.out.println("Antes de enviar ok para o cliente");
         sendResponseToClient(topRequest);
 
 
@@ -396,6 +394,13 @@ public class ClusterSyncMember {
         if (args.length < 2) {
             System.out.println("Uso: java ClusterSyncMember <id> <porta> [<portas dos outros membros>...]");
             return;
+        }
+
+        try {
+            //Thread.sleep(new Random().nextInt(800) + 200); // Simula trabalho na seção crítica
+            Thread.sleep(20000);
+        } catch (InterruptedException e) {
+            e.printStackTrace();
         }
 
         int id = Integer.parseInt(args[0]);
@@ -420,8 +425,8 @@ public class ClusterSyncMember {
             int memberPort = Integer.parseInt(args[i + 1]);
             clusterMembers.add(new AbstractMap.SimpleEntry<>(name, memberPort));
         }
-        System.out.println("ClusterStorage: " + storageMembers);
-        System.out.println("MembersSync: " + clusterMembers);
+        //System.out.println("ClusterStorage: " + storageMembers);
+        //System.out.println("MembersSync: " + clusterMembers);
 
         ClusterSyncMember member = new ClusterSyncMember(id, port, storageMembers, clusterMembers, clientCred);
 

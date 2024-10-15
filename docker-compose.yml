@@ -6,44 +6,60 @@ services:
       context: .
       dockerfile: Dockerfile.member
     container_name: member1
-    command: ["java", "-cp", ".", "main.java.com.distributed.ClusterSyncMember", "1", "8081", "client1", "9001", "member2", "8082", "member3", "8083", "member4", "8084", "member5", "8085"]
+    command: [ "sh", "-c", "sleep 1 && java -cp . main.java.com.distributed.ClusterSyncMember 1 8081 client1 9001 store1 9091 store2 9092 store3 9093 member2 8082 member3 8083 member4 8084 member5 8085" ]
     ports:
       - "8081:8081"
     networks:
       - syncnet
+    depends_on:
+      - store1
+      - store2
+      - store3
 
   member2:
     build:
       context: .
       dockerfile: Dockerfile.member
     container_name: member2
-    command: ["java", "-cp", ".", "main.java.com.distributed.ClusterSyncMember", "2", "8082", "client2", "9002", "member1", "8081", "member3", "8083", "member4", "8084", "member5", "8085"]
+    command: [ "sh", "-c", "sleep 1 && java -cp . main.java.com.distributed.ClusterSyncMember 2 8082 client2 9002 store1 9091 store2 9092 store3 9093 member1 8081 member3 8083 member4 8084 member5 8085" ]
     ports:
       - "8082:8082"
     networks:
       - syncnet
+    depends_on:
+      - store1
+      - store2
+      - store3
 
   member3:
     build:
       context: .
       dockerfile: Dockerfile.member
     container_name: member3
-    command: ["java", "-cp", ".", "main.java.com.distributed.ClusterSyncMember", "3", "8083", "client3", "9003", "member1", "8081", "member2", "8082", "member4", "8084", "member5", "8085"]
+    command: [ "sh", "-c", "sleep 1 && java -cp . main.java.com.distributed.ClusterSyncMember 3 8083 client3 9003 store1 9091 store2 9092 store3 9093 member1 8081 member2 8082 member4 8084 member5 8085" ]
     ports:
       - "8083:8083"
     networks:
       - syncnet
+    depends_on:
+      - store1
+      - store2
+      - store3
 
   member4:
     build:
       context: .
       dockerfile: Dockerfile.member
     container_name: member4
-    command: [ "java", "-cp", ".", "main.java.com.distributed.ClusterSyncMember", "4", "8084", "client4", "9004", "member1", "8081", "member2", "8082", "member3", "8083", "member5", "8085" ]
+    command: [ "sh", "-c", "sleep 1 && java -cp . main.java.com.distributed.ClusterSyncMember 4 8084 client4 9004 store1 9091 store2 9092 store3 9093 member1 8081 member2 8082 member3 8083 member5 8085" ]
     ports:
       - "8084:8084"
     networks:
       - syncnet
+    depends_on:
+      - store1
+      - store2
+      - store3
 
 
   member5:
@@ -51,11 +67,15 @@ services:
       context: .
       dockerfile: Dockerfile.member
     container_name: member5
-    command: [ "java", "-cp", ".", "main.java.com.distributed.ClusterSyncMember", "5", "8085", "client5", "9005", "member1", "8081", "member2", "8082", "member3", "8083", "member4", "8084" ]
+    command: ["sh", "-c", "sleep 1 && java -cp . main.java.com.distributed.ClusterSyncMember 5 8085 client5 9005 store1 9091 store2 9092 store3 9093 member1 8081 member2 8082 member3 8083 member4 8084"]
     ports:
       - "8085:8085"
     networks:
       - syncnet
+    depends_on:
+      - store1
+      - store2
+      - store3
 
 
 
@@ -125,6 +145,41 @@ services:
       - syncnet
     depends_on:
       - member5
+
+
+  store1:
+    build:
+      context: .
+      dockerfile: Dockerfile.store
+    container_name: store1
+    command: [ "java", "-cp", ".", "main.java.com.distributed.StorageServer", "1", "9091", "store2", "9092", "store3", "9093" ]
+    ports:
+      - "9091:9091"
+    networks:
+      - syncnet
+
+
+  store2:
+    build:
+      context: .
+      dockerfile: Dockerfile.store
+    container_name: store2
+    command: [ "java", "-cp", ".", "main.java.com.distributed.StorageServer", "2", "9092", "store1", "9091", "store3", "9093" ]
+    ports:
+      - "9092:9092"
+    networks:
+      - syncnet
+
+  store3:
+    build:
+      context: .
+      dockerfile: Dockerfile.store
+    container_name: store3
+    command: [ "java", "-cp", ".", "main.java.com.distributed.StorageServer", "3", "9093", "store2", "9092", "store1", "9091" ]
+    ports:
+      - "9093:9093"
+    networks:
+      - syncnet
 
 
 
