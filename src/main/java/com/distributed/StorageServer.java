@@ -5,9 +5,10 @@ import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
 
 public class StorageServer {
-    private static final long HEARTBEAT_TIMEOUT = 5000;
+    private static final long HEARTBEAT_TIMEOUT = 10000;
     private int requestCounter = 0;
     private boolean iHaveRequest = false;
+    private boolean weHaveAPrimary = false;
     //private int timeStampOrder
     private int id;
     private boolean myrequest = false;
@@ -117,10 +118,9 @@ public class StorageServer {
                 } else if (message != null && message.startsWith("NEW_VALUE")) {
                     String[] parts = message.split(" ");
                     counter = Integer.parseInt(parts[1]);
-                    System.out.println("Novo valor: " + counter);
+                    System.out.println("Novo valor(Recebido pela propagação): " + counter);
 
                     if(myrequest && clientSocketGlobal != null) {
-                        iHaveRequest = false;
                         try (PrintWriter out = new PrintWriter(clientSocketGlobal.getOutputStream(), true)) {
                             out.println("COMMITED");
                             System.out.println("Resposta COMMITED enviada para o solicitante.");
@@ -132,6 +132,8 @@ public class StorageServer {
                         System.out.println("Erro: socket do cliente não foi encontrado.");
                     }
                 } else if (message != null && message.startsWith("WRITE2")) {
+                    iHaveRequest = true;
+                    requestCounter++;
                     String[] parts = message.split(":");
                     this.memberIdAct = Integer.parseInt(parts[2]);
                     System.out.println("Request feito pelo membro: " + memberIdAct);
@@ -166,27 +168,34 @@ public class StorageServer {
             System.out.println("Eu NÃO sou o primário!");
             this.primaryClusterStorage = Integer.parseInt(primaryServer);
             System.out.println("O Primário é: " + primaryClusterStorage);
+            weHaveAPrimary = true;
         }
     }
 
     // Lida com a operação de escrita
     private void handleWriteRequest(String message) {
         if (iAmPrimary) {
+            primaryAndWriter = true;
             // Incrementa o valor
+            if(iHaveRequest && requestCounter >= 3){
+                System.out.println("Ifinho");
+                System.exit(0);
+            }
 
             try {
                 Thread.sleep(3000);
             } catch (InterruptedException e) {
                 e.printStackTrace();
             }
-            int newValue = counter++;
-            System.out.println("Novo valor: " + newValue);
+            counter++;
+            System.out.println("Novo valor(No primário): " + counter);
 
             // Propaga o novo valor para os outros servidores
-            propagateNewValueToCluster(newValue);
+            propagateNewValueToCluster(counter);
 
             //Retorno para o commited para o membro do clustersync no caso de eu ser o primário e ter recebido a requisição direto dele
             if(myrequest && clientSocketGlobal != null && primaryAndWriter) {
+                iHaveRequest = false;
                 try (PrintWriter out = new PrintWriter(clientSocketGlobal.getOutputStream(), true)) {
                     out.println("COMMITED");
                     System.out.println("Resposta COMMITED enviada para o solicitante.");
@@ -200,12 +209,13 @@ public class StorageServer {
             }
 
             //System.out.println("Retorno ao Membro: "  + " porta: "  + " feito com sucesso!");
-        } else {
-            if(iHaveRequest && requestCounter == 3 && !iAmPrimary){
-                System.exit(0);
-            }
+        } else if(weHaveAPrimary){
+
             // Repassa a requisição para o primário
             forwardRequestToPrimary(message);
+        } else {
+            System.out.println("Elsinho");
+            System.exit(0);
         }
     }
 
@@ -245,16 +255,36 @@ public class StorageServer {
         new Thread(() -> {
             while (true) {
                 try {
-                    for (Map.Entry<String, Integer> server : otherStorageServers) {
+                    Iterator<Map.Entry<String, Integer>> iterator = otherStorageServers.iterator();
+
+                    // Percorrer a lista com um Iterator
+                    while (iterator.hasNext()) {
+                        Map.Entry<String, Integer> server = iterator.next();
+
                         try (Socket socket = new Socket(server.getKey(), server.getValue())) {
                             PrintWriter out = new PrintWriter(socket.getOutputStream(), true);
                             out.println("HEARTBEAT " + port);
                         } catch (IOException e) {
                             System.out.println("OPA1");
-                            removeEntryByValue(server.getValue());
+
+                            if (primaryClusterStorage == server.getValue()) {
+                                weHaveAPrimary = false;
+                                serverTimestamps.remove(String.valueOf(server.getValue()));
+                                checkIfPrimary();
+                                Thread.sleep(2000);
+                            }
+
+                            // Usando o iterator para remover o item de forma segura
+                            iterator.remove();
+                            System.out.println("Clusters restantes: " + otherStorageServers);
+                            System.out.println("Eu tenho request? " + myrequest);
+                            if(myrequest){
+                                handleWriteRequest("");
+                            }
                         }
                     }
-                    Thread.sleep(1000);  // Envia heartbeats a cada 5 segundos (pode ajustar o tempo)
+
+                    Thread.sleep(1000); // Envia heartbeats a cada 1 segundo (pode ajustar o tempo)
                 } catch (InterruptedException e) {
                     System.out.println("OPA2");
                     e.printStackTrace();
@@ -262,6 +292,7 @@ public class StorageServer {
             }
         }).start();
     }
+
 
 
     private void monitorHeartbeats() {

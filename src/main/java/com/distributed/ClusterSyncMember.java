@@ -367,10 +367,17 @@ public class ClusterSyncMember {
                 System.out.println("Requisição " + request.requestId + " confirmada pelo StorageServer");
             } else {
                 System.out.println("Erro ao confirmar a requisição " + request.requestId);
+//                writeToStorage(request);
             }
 
         } catch (IOException e) {
             System.out.println("FALHA NA CONEXÃO!");
+            try {
+                //Thread.sleep(new Random().nextInt(800) + 200); // Simula trabalho na seção crítica
+                Thread.sleep(3000);
+            } catch (InterruptedException e2) {
+                e.printStackTrace();
+            }
             writeToStorage(request);
         }
     }
